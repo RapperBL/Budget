@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios'; // assuming you're using axios for API calls
 import Navbar from '../components/nav/Nav';
-import { DisplayUser } from '../Service';
+import { DisplayUser, updateUserProfile, changeUserPassword } from '../Service';
 import Swal from 'sweetalert2';
 
 const Setting = () => {
@@ -40,14 +40,7 @@ const Setting = () => {
     const handleEditUserDetails = async () => {
         try {
             const { Login_No } = userData;
-            if (!Login_No) {
-                throw new Error('Login_No is not defined');
-            }
-
-            await axios.patch(`http://172.16.13.13:4000/api/UpdateProfile/${Login_No}`, {
-                Login_User: newUsername,
-                LoginFullName: newFullName 
-            });
+            await updateUserProfile(Login_No, newUsername, newFullName);
 
             setUserData(prevData => ({
                 ...prevData, 
@@ -81,16 +74,7 @@ const Setting = () => {
     
         try {
             const { Login_No } = userData;
-            if (!Login_No) {
-                throw new Error('Login_No is not defined');
-            }
-    
-            // Send request to update the password
-            await axios.patch(`http://172.16.13.13:4000/api/ChangePassword/${Login_No}`, {
-                oldPassword: oldPassword, // Send old password for validation
-                newPassword: newPassword, // Update with new password
-                confirmPassword: confirmPassword
-            });
+            await changeUserPassword(Login_No, oldPassword, newPassword, confirmPassword);
     
             Swal.fire('Success', 'Password changed successfully', 'success');
             setIsPasswordModalOpen(false); 

@@ -62,6 +62,7 @@ const Navbar = () => {
             to="/Home"
             className={`flex items-center space-x-2 ${(isActive("/Home") || isActive("/BudgetReport")) ? "text-blue-400 font-bold" : "hover:text-blue-400"
               } transition-colors`}
+              onClick={() => localStorage.removeItem('selectedYear')}
           >
             <FaHome className="w-5 h-5" />
             <span className="font-bold text-lg">Home</span>
