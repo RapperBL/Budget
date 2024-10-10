@@ -1,82 +1,114 @@
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import axios from 'axios';
 import Navbar from '../components/nav/Nav';
+import { fetchDepartments, fetchYears, fetchBigGroups, fetchReportData as fetchReport, fetchReportDataAll as fetchAllReports } from '../Service';
 
 const BudgetReport = () => {
   const [filters, setFilters] = useState({
-    reportType: '1', // Default to 'ສູນໃຫຍ່ນະຄອນຫຼວງ'
-    category: '88', // Default divisionNames
-    year: '2024', // Default to 2024
-    unit: '9' // Default BigGroup
+    reportType: '1', 
+    category: '88', 
+    year: '2024', 
+    unit: '9'
   });
-  const [departments, setDepartments] = useState([]); // To store fetched department options
-  const [years, setYears] = useState([]); // To store fetched year options
-  const [bigGroups, setBigGroups] = useState([]); // To store BigGroup options (unit)
-  const [reportData, setReportData] = useState([]); // To store report data
+  const [departments, setDepartments] = useState([]);
+  const [years, setYears] = useState([]);
+  const [bigGroups, setBigGroups] = useState([]);
+  const [reportData, setReportData] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 10;
 
-  // Handle filter change
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters(prevState => ({ ...prevState, [name]: value }));
   };
 
-  // Fetch departments when reportType (selectedGroup) changes
   useEffect(() => {
     if (filters.reportType) {
-      axios
-        .get(`http://172.16.13.30:4000/api/ComboboxDepartment?selectedGroup=${filters.reportType}`)
-        .then((response) => {
-          setDepartments(response.data);
-          // Set default category to "ພະແນກການເງິນ" if available
-          const defaultDepartment = response.data.find(dept => dept.Division_Name === "ພະແນກການເງິນ");
+      fetchDepartments(filters.reportType)
+        .then((data) => {
+          setDepartments(data);
+          const defaultDepartment = data.find(dept => dept.Division_Name === 'ພະແນກການເງິນ' || dept.Division_Name === 'ແຂວງໄຊຍະບູລີ'|| dept.Division_Name === 'ຫົວໜ້າຝ່າຍ');
           if (defaultDepartment) {
-            setFilters(prevState => ({ ...prevState, category: defaultDepartment.Division_No }));
+            setFilters(prevState => ({
+              ...prevState,
+              category: defaultDepartment.Division_No,
+            }));
           }
         })
-        .catch((error) => {
+        .catch(() => {
           Swal.fire('Error', 'Failed to fetch department data', 'error');
         });
     } else {
-      setDepartments([]); // Clear departments if no reportType is selected
+      setDepartments([]);
     }
   }, [filters.reportType]);
 
-  // Fetch year data when component mounts
   useEffect(() => {
-    axios
-      .get('http://172.16.13.30:4000/api/ComboboxYearDepartment')
-      .then((response) => {
-        setYears(response.data); // Set the year options
+    fetchYears()
+      .then((data) => {
+        setYears(data);
       })
-      .catch((error) => {
+      .catch(() => {
         Swal.fire('Error', 'Failed to fetch year data', 'error');
       });
   }, []);
 
-  // Fetch BigGroup (unit) data when component mounts
   useEffect(() => {
-    axios
-      .get('http://172.16.13.30:4000/api/ComboboxBigGroup')
-      .then((response) => {
-        setBigGroups(response.data); // Set the BigGroup options
+    fetchBigGroups()
+      .then((data) => {
+        setBigGroups(data);
       })
-      .catch((error) => {
+      .catch(() => {
         Swal.fire('Error', 'Failed to fetch BigGroup data', 'error');
       });
   }, []);
 
-  // Function to fetch report data based on filters
-  const fetchReportData = () => {
+  // Fetch report data when the component mounts
+  useEffect(() => {
+    handleFetchReportDataAll();
+  }, []);
+
+  const handleFetchReportData = () => {
     const { reportType, year, unit, category } = filters;
-    axios
-      .get(`http://172.16.13.30:4000/api/ReportDepartment?SelectedGroup=${reportType}&Year=${year}&BigGroup=${unit}&divisionNames=${category}`)
-      .then((response) => {
-        setReportData(response.data.result); // Set the report data
+    fetchReport(reportType, year, unit, category)
+      .then((data) => {
+        setReportData(data);
+        setCurrentPage(1); // Reset to the first page
       })
-      .catch((error) => {
+      .catch(() => {
         Swal.fire('Error', 'Failed to fetch report data', 'error');
       });
+  };
+
+  const handleFetchReportDataAll = () => {
+    const { reportType, year, category } = filters;
+    fetchAllReports(reportType, year, category)
+      .then((data) => {
+        setReportData(data);
+        setCurrentPage(1); // Reset to the first page
+      })
+      .catch(() => {
+        Swal.fire('Error', 'Failed to fetch report data', 'error');
+      });
+  };
+
+  // Pagination logic
+  const indexOfLastRow = currentPage * rowsPerPage;
+  const indexOfFirstRow = indexOfLastRow - rowsPerPage;
+  const currentRows = reportData.slice(indexOfFirstRow, indexOfLastRow);
+
+  const totalPages = Math.ceil(reportData.length / rowsPerPage);
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(prevPage => prevPage + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(prevPage => prevPage - 1);
+    }
   };
 
   return (
@@ -162,19 +194,32 @@ const BudgetReport = () => {
             </div>
           </div>
           <div className="flex gap-5 mt-4">
-            <button className="bg-green-500 text-white px-4 py-2 rounded-md">ສະແດງທັງໝົດ</button>
-            <button className="bg-blue-400 text-white px-4 py-2 rounded-md" onClick={fetchReportData}>ຄົ້ນຫາ</button>
+            <button className="bg-green-500 text-white px-4 py-2 rounded-md" onClick={handleFetchReportDataAll}>ສະແດງທັງໝົດ</button>
+            <button className="bg-blue-400 text-white px-4 py-2 rounded-md" onClick={handleFetchReportData}>ຄົ້ນຫາ</button>
           </div>
         </div>
 
+        <div className=" bg-green-100 border border-green-300 text-gray-800 rounded-lg p-6 shadow-md mx-auto mt-5">
+          <h3 className="text-2xl font-semibold mb-4">
+            ປະຈໍາປີ: 2022, ແຜນງານການໃຊ້ຈ່າຍ
+          </h3>
+          <p className="text-lg">
+            ວົງເງິນທີ່ຈັດສັນ: 48,313,364,180 LAK, ໃຊ້ໄປແລ້ວ: 7,126,723,274 LAK
+          </p>
+          <p className="text-lg">
+            ຍອດທີ່ເຫຼືອ: 41,186,640,906 LAK, ອັດຕາການໃຊ້ງານ: 85.25%
+          </p>
+        </div>
+
+
         {/* Display fetched report data */}
-        {reportData.length > 0 && (
+        {reportData.length > 0 ? (
           <div className="bg-white p-4 rounded-md mt-6">
             <h2 className="text-2xl mb-4">Report Results</h2>
             <table className="min-w-full bg-white">
               <thead>
                 <tr>
-                  <th className="py-2 px-4 border">RS No</th>
+                  <th className="py-2 px-4 border">No</th>
                   <th className="py-2 px-4 border">Group Name</th>
                   <th className="py-2 px-4 border">Code Full</th>
                   <th className="py-2 px-4 border">Code Name</th>
@@ -182,12 +227,13 @@ const BudgetReport = () => {
                   <th className="py-2 px-4 border">Plan</th>
                   <th className="py-2 px-4 border">Total Result</th>
                   <th className="py-2 px-4 border">Amount Still</th>
+                  <th className="py-2 px-4 border">Percent %</th>
                 </tr>
               </thead>
               <tbody>
-                {reportData.map((row) => (
-                  <tr key={row.RS_No}>
-                    <td className="py-2 px-4 border">{row.RS_No}</td>
+                {currentRows.map((row, index) => (
+                  <tr key={index}>
+                    <td className="py-2 px-4 border">{indexOfFirstRow + index + 1}</td>
                     <td className="py-2 px-4 border">{row.Group_Name}</td>
                     <td className="py-2 px-4 border">{row.Code_Full}</td>
                     <td className="py-2 px-4 border">{row.Code_Name}</td>
@@ -195,10 +241,32 @@ const BudgetReport = () => {
                     <td className="py-2 px-4 border">{row.RS_Plan.toLocaleString()}</td>
                     <td className="py-2 px-4 border">{row.TotalResultDetail.toLocaleString()}</td>
                     <td className="py-2 px-4 border">{row.AmountStill.toLocaleString()}</td>
+                    <td className="py-2 px-4 border">{row.Percentage}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <div className="flex justify-between mt-4">
+              <button
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <span className="text-gray-700">Page {currentPage} of {totalPages}</span>
+              <button
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white p-4 rounded-md mt-6">
+            <h2 className="text-2xl mb-4">No Data Available</h2>
           </div>
         )}
       </div>
